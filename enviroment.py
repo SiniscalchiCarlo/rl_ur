@@ -67,6 +67,7 @@ class RoyalGameOfUr(gym.Env):
         self.player1_loc = [self.home_cell] * self.N
         self.player2_loc = [self.home_cell] * self.N
         self.current_player = 1
+        self.last_landed_position = None
         self.roll = self.roll_dice()
         self.state = np.array(
             self.player1_loc + self.player2_loc + [self.roll],
@@ -79,49 +80,97 @@ class RoyalGameOfUr(gym.Env):
         """
         Checks if current player won
         """
+        pieces = self.player1_loc if self.current_player == 1 else self.player2_loc
+        return all(piece == self.scored_cell for piece in pieces)
 
     def get_legal_moves(self):
         """
         Gets legal actions for current player
         """
+        pieces = self.player1_loc if self.current_player == 1 else self.player2_loc
+        legal_actions = []
+
+        for start in sorted(set(pieces)):
+            if self.roll == 0 or start == self.scored_cell:
+                continue
+
+            destination = min(start + self.roll, self.scored_cell)
+            # The only pieces that can shere the same cells are the one in the home or score cell, otherwise the action is illegal
+            if destination not in (self.home_cell, self.scored_cell) and destination in pieces:
+                continue
+
+            legal_actions.append(self.action_to_id[start])
+
+        return legal_actions or [self.pass_action]
 
     def update_board(self, action):
         """
         Update current player pieces positions.
         Checks if current player captured any enemy pieces and in case resets their position
         """
+        self.last_landed_position = None
+        if action == self.pass_action:
+            return
+
+        own_pieces = self.player1_loc if self.current_player == 1 else self.player2_loc
+        enemy_pieces = self.player2_loc if self.current_player == 1 else self.player1_loc
+
+        start = self.actions[int(action)]
+        destination = min(start + self.roll, self.scored_cell)
+        own_pieces[own_pieces.index(start)] = destination
+        self.last_landed_position = destination
+
+        if destination in self.public_cells and destination in enemy_pieces:
+            enemy_pieces[enemy_pieces.index(destination)] = self.home_cell
 
     def is_on_rosette(self):
         """
         Checks if current player is on a rosette, if not updates the current player
         """
+        return self.last_landed_position in self.rosettes
                       
     def move_p2(self):
-        legal_actions = self.get_legal_moves()
-        p2_action = self.np_random.choice(legal_actions)
-        if p2_action:
+        self.current_player = 2
+
+        while self.current_player == 2:
+            self.roll = self.roll_dice()
+            legal_actions = self.get_legal_moves()
+            p2_action = int(self.np_random.choice(legal_actions))
             self.update_board(p2_action)
 
-        self.check_win()
-        self.roll = self.roll_dice()
-        if not self.is_on_rosette():
-            self.current_player == 1 
-        else:
-            self.move_p2()
+            if self.check_win():
+                return True
+
+            if not self.is_on_rosette():
+                self.current_player = 1
+
+        return False
 
     def step(self, action):
         self.current_player = 1
         legal_actions = self.get_legal_moves()
 
-        if self.action and self.action in legal_actions:
-            self.update_board(action)
-        self.check_win()
-        self.roll = self.roll_dice()
-        if not self.is_on_rosette():
-            self.current_player == 2
-            self.move_p2()
+        if action not in legal_actions:
+            raise ValueError(f"Illegal action {action} in state {self.state.tolist()}")
 
+        self.update_board(action)
+        terminated = self.check_win()
+        reward = 1 if terminated else 0
 
+        if not terminated and self.is_on_rosette():
+            self.roll = self.roll_dice()
+        elif not terminated:
+            terminated = self.move_p2()
+            if not terminated:
+                self.roll = self.roll_dice()
+
+        self.current_player = 1
+        self.state = np.array(
+            self.player1_loc + self.player2_loc + [self.roll],
+            dtype=np.int64,
+        )
+        info = {"legal_actions": [] if terminated else self.get_legal_moves()}
+        return self.state, reward, terminated, False, info
 
 
 
