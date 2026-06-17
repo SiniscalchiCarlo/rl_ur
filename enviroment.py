@@ -96,23 +96,34 @@ class RoyalGameOfUr(gym.Env):
         Checks if current player is on a rosette, if not updates the current player
         """
                       
-
-    def step(self, action):
-        self.roll = self.roll_dice()
-        legal_actions = self.get_legal_moves(action)
-
-        if self.current_player == 1:
-            if self.action and self.action in legal_actions:
-                self.update_board(action)
-
-        else:
-            p2_action = self.np_random.choice(legal_actions)
-            if p2_action:
-                self.update_board(action)
-
+    def move_p2(self):
+        legal_actions = self.get_legal_moves()
+        p2_action = self.np_random.choice(legal_actions)
+        if p2_action:
+            self.update_board(p2_action)
 
         self.check_win()
-        self.is_on_rosette()
+        self.roll = self.roll_dice()
+        if not self.is_on_rosette():
+            self.current_player == 1 
+        else:
+            self.move_p2()
+
+    def step(self, action):
+        self.current_player = 1
+        legal_actions = self.get_legal_moves()
+
+        if self.action and self.action in legal_actions:
+            self.update_board(action)
+        self.check_win()
+        self.roll = self.roll_dice()
+        if not self.is_on_rosette():
+            self.current_player == 2
+            self.move_p2()
+
+
+
+
 
     def render(self, player1_loc, player2_loc):
         """
