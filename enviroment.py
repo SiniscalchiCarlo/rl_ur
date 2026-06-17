@@ -24,8 +24,10 @@ class RoyalGameOfUr(gym.Env):
         # 0 = not entered, 1..14 = board path, 15 = scored.
         self.home_cell = 0
         self.scored_cell = 15
-        self.private_cells = tuple(list(range(0, 5)) + [14, 15])
-        self.public_cells = tuple(range(5, 14))
+        
+        self.private_cells = tuple(list(range(0, 5)) + [13, 14, 15])
+        self.public_cells = tuple(range(5, 13))
+
         self.rosettes = (4, 8, 14)
         self.all_cells = tuple(range(0, 16))
 
@@ -34,13 +36,10 @@ class RoyalGameOfUr(gym.Env):
         # and the dice roll has 5 possible values (0..4).
         self.observation_space = spaces.MultiDiscrete([len(self.all_cells)] * (2 * self.N) + [5])
 
-        # Use action ids for Gymnasium. Id 0 is pass; all other ids decode to
-        # the start position of the piece to move. The destination is determined
-        # by the current dice roll in the state. Illegal starts are filtered in step.
-        self.pass_action = 0
-        self.actions = [None] + list(self.all_cells)
-        self.action_to_id = {action: action_id for action_id, action in enumerate(self.actions)}
-        self.action_space = spaces.Discrete(len(self.actions))
+        # Actions are start positions directly: action 0 moves a piece from
+        # position 0, action 1 from position 1, etc. Action 15 is pass.
+        self.pass_action = self.scored_cell
+        self.action_space = spaces.Discrete(self.scored_cell + 1)
 
         self.reset()
         
@@ -99,7 +98,7 @@ class RoyalGameOfUr(gym.Env):
             if destination not in (self.home_cell, self.scored_cell) and destination in pieces:
                 continue
 
-            legal_actions.append(self.action_to_id[start])
+            legal_actions.append(start)
 
         return legal_actions or [self.pass_action]
 
@@ -115,7 +114,7 @@ class RoyalGameOfUr(gym.Env):
         own_pieces = self.player1_loc if self.current_player == 1 else self.player2_loc
         enemy_pieces = self.player2_loc if self.current_player == 1 else self.player1_loc
 
-        start = self.actions[int(action)]
+        start = int(action)
         destination = min(start + self.roll, self.scored_cell)
         own_pieces[own_pieces.index(start)] = destination
         self.last_landed_position = destination
@@ -141,7 +140,7 @@ class RoyalGameOfUr(gym.Env):
             if self.check_win():
                 return True
 
-            if not self.is_on_rosette():
+            if not self.last_landed_position in self.rosettes:
                 self.current_player = 1
 
         return False
@@ -157,12 +156,13 @@ class RoyalGameOfUr(gym.Env):
         terminated = self.check_win()
         reward = 1 if terminated else 0
 
-        if not terminated and self.is_on_rosette():
-            self.roll = self.roll_dice()
-        elif not terminated:
-            terminated = self.move_p2()
-            if not terminated:
+        if not terminated:
+            if self.is_on_rosette():
                 self.roll = self.roll_dice()
+            else:
+                terminated = self.move_p2()
+                if not terminated:
+                    self.roll = self.roll_dice()
 
         self.current_player = 1
         self.state = np.array(

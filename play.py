@@ -3,14 +3,14 @@ import time
 from enviroment import RoyalGameOfUr
 
 
-def board_positions(positions):
+def active_board_positions(positions):
     return [position for position in positions if 1 <= position <= 14]
 
 
 def describe_action(env, action):
     if action == env.pass_action:
         return "pass"
-    return f"move from {env.actions[action]}"
+    return f"move from {action}"
 
 
 def play_episode(N=2, seed=None, delay=0.5, max_steps=200):
@@ -20,9 +20,10 @@ def play_episode(N=2, seed=None, delay=0.5, max_steps=200):
     truncated = False
     total_reward = 0
     step_count = 0
+    reward = 0
 
     print(f"Initial observation: {observation.tolist()}")
-    env.render(board_positions(env.player1_loc), board_positions(env.player2_loc))
+    env.render(active_board_positions(env.player1_loc), active_board_positions(env.player2_loc))
 
     while not (terminated or truncated) and step_count < max_steps:
         legal_actions = env.get_legal_moves()
@@ -41,13 +42,19 @@ def play_episode(N=2, seed=None, delay=0.5, max_steps=200):
             f"Observation: {observation.tolist()}, reward={reward}, "
             f"terminated={terminated}, next_legal={info['legal_actions']}"
         )
-        env.render(board_positions(env.player1_loc), board_positions(env.player2_loc))
+        print(f"p1={env.player1_loc}, p2={env.player2_loc}")
+        env.render(active_board_positions(env.player1_loc), active_board_positions(env.player2_loc))
         time.sleep(delay)
 
     if step_count >= max_steps and not terminated:
         truncated = True
 
-    winner = "player 1" if reward == 1 else "player 2" if terminated else "none"
+    if all(piece == env.scored_cell for piece in env.player1_loc):
+        winner = "player 1"
+    elif all(piece == env.scored_cell for piece in env.player2_loc):
+        winner = "player 2"
+    else:
+        winner = "none"
     print(
         f"Finished after {step_count} steps. "
         f"winner={winner}, total_reward={total_reward}, truncated={truncated}"
