@@ -1,0 +1,120 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{geometry}
+\usepackage{amsmath}
+\title{RL Assignment 2}
+\author{Carlo, Davide and Duru}
+\date{June 2026}
+
+\begin{document}
+
+\maketitle
+\section{Modelling}
+\subsection{States}
+Define the states as follows:
+
+\[
+s=(p_1,p_2,d),
+\]
+where
+
+\[
+p_1=(p_{11},p_{12})
+\]
+contains the positions of player 1's two pieces,
+
+\[
+p_2=(p_{21},p_{22})
+\]
+contains the positions of player 2's two pieces, and
+
+\[
+d\in\{0,1,2,3,4\}
+\]
+is the current dice roll available to player 1. Each piece position can take values between $[-1,14]$ and we define it as,
+
+\[
+\mathcal P=
+\{-1,0,1,\ldots,13,14\}.
+\]
+$-1$ represents a piece that has not yet entered the board, the numbers $0,\ldots,13$ denote the squares along the piece's path, and $14$ represents a piece that has been removed from the board which counts as a score.
+\\
+\\
+We chose this representation because...\\
+- information that is relevant to future transitions\\
+- compact, simple implementation of the environment. Board occupancy like tic-tac is more complex \\
+-moving is just updating the location, scoring directly from location\\
+- state key\\
+
+\subsubsection{Terminal States}
+The game ends when any player scores both pieces. In other words, either when player 1 wins,$p_1=(14,14)$, or when player 2 wins, $p_2=(14,14)$. We define 2 terminal states:
+\begin{align*}
+s_{\text{win}} & : \text{player 1 has scored both pieces},\\
+s_{\text{lose}} & : \text{player 2 has scored both pieces}.\\
+\end{align*}
+Formally,
+
+\[
+s_{\text{win}}
+\iff
+p_{11}=p_{12}=14,
+\]
+and
+
+\[
+s_{\text{lose}}
+\iff
+p_{21}=p_{22}=14.
+\]
+
+With this representation, the pieces of a player are interchangeable, as swapping locations would represent the same board positions. For example, $s_1 = \{(1,2),p_2,d)\} \text{ and } s_2 = \{(2,1),p_2,d)\}$ are equivalent states. It is possible to reduce the state space by removing the symmetric positions, however this would complicate the implementation. We made the choice to keep the states as is.
+\subsection{Actions}
+An action can be defined as choosing one of player 1's pieces and moving it according to the current dice roll. We can represent an action as
+
+\[
+a=(x,y)
+\]
+where $x$ represents the current position of the selected piece, while $y$ is the destination (square) position after moving the rolled amount of squares.
+\medskip
+
+The set of possible actions $A(s)$ contains all actions satisfying the rules of the game. It must satisfy the following rules,
+\begin{itemize}
+\item the piece belongs to player 1,
+\item the piece moves exactly $d$ squares,
+\item the destination square is not occupied by another piece of player 1,
+\item if the destination square is occupied by player 2's piece, enemy piece is captured,
+\item a piece can only be scored (14) if the exact $d$ to leave the board is rolled.
+\end{itemize}
+
+If no possible action exists, where either no moves follow the rules or dice roll $d = 0$, then we define the special action, $a_{pass}.$ This means player 1 cannot make a move. 
+
+\subsection{Reward Function}
+Player 1 aims to maximize the probability of winning. Therefore, rewards are only assigned when a terminal state is reached. We define the reward function as,
+\[
+r(s, a, s')=
+\begin{cases}
+1, & \text{if } s' = s_{\text{win}},\\
+0, & \text{otherwise}.
+\end{cases}
+\]
+where $s$ is the current state, $a$ is the current action, and $s'$ is the next state. Player 1 receives a reward of $1$ when winning the game and a reward of $0$ for all other transitions.
+
+
+
+
+\subsection{Transition function} 
+ill write this but we're told to not formulate it
+%1. We start each epoch on the turn of player 1, and we are given the current state of the MDP, including both board state and dice roll 
+%2. Player 1 takes an action which updates the board state, and a new dice roll is made.
+%3. If player 1 moved a piece to a rosette tile, he takes another turn and we go to the next decision epoch, i.e., we go back to step 1. Otherwise, proceed to step 4.
+%4. It is player 2’s turn, who takes a random action from the available actions based on the current state and dice roll. Furthermore, a new dice roll is made.
+%5. If player 2 moved a piece to a rosette tile, he takes another turn and we go back to step 4. Otherwise,return to step 1.
+
+%Thus, the transition contains the effect of the move of player 1, plus the moves of player 2 that happen in between. If either player wins on one of their respective turns, then the MDP transitions to the respective terminal state.
+
+\section{Game Environment}
+
+\section{Implementation}
+
+\end{document}
+
