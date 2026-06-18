@@ -31,10 +31,10 @@ class RoyalGameOfUr(gym.Env):
         # and the dice roll has 5 possible values (0..4).
         self.observation_space = spaces.MultiDiscrete([len(self.all_cells)] * (2 * self.N) + [5])
 
-        # Actions are start positions directly: action 0 moves a piece from
-        # position 0, action 1 from position 1, etc. Action 15 is pass.
-        self.pass_action = self.scored_cell
-        self.action_space = spaces.Discrete(self.scored_cell + 1)
+        # Actions are pairs (start, destination), following the assignment formulation.
+        # The pass action is represented by (15, 15).
+        self.pass_action = (self.scored_cell, self.scored_cell)
+        self.action_space = spaces.MultiDiscrete([len(self.all_cells), len(self.all_cells)])
 
         self.reset()
         
@@ -77,6 +77,13 @@ class RoyalGameOfUr(gym.Env):
         pieces = self.player1_loc if self.current_player == 1 else self.player2_loc
         return all(piece == self.scored_cell for piece in pieces)
 
+    def normalize_action(self, action):
+        if isinstance(action, np.ndarray):
+            action = action.tolist()
+        if isinstance(action, (list, tuple)) and len(action) == 2:
+            return int(action[0]), int(action[1])
+        raise ValueError(f"Action must be a (start, destination) pair, got {action}")
+
     def get_legal_moves(self):
         """
         Gets legal actions for current player
@@ -96,7 +103,7 @@ class RoyalGameOfUr(gym.Env):
             if destination not in (self.home_cell, self.scored_cell) and destination in pieces:
                 continue
 
-            legal_actions.append(start)
+            legal_actions.append((start, destination))
 
         return legal_actions or [self.pass_action]
 
@@ -106,16 +113,21 @@ class RoyalGameOfUr(gym.Env):
         Checks if current player captured any enemy pieces and in case resets their position
         """
         self.last_landed_position = None
+        action = self.normalize_action(action)
         if action == self.pass_action:
             return
 
         own_pieces = self.player1_loc if self.current_player == 1 else self.player2_loc
         enemy_pieces = self.player2_loc if self.current_player == 1 else self.player1_loc
 
-        start = int(action)
-        destination = start + self.roll
-        if destination > self.scored_cell:
+        start, destination = action
+        expected_destination = start + self.roll
+        if expected_destination > self.scored_cell:
             raise ValueError(f"Illegal overshoot from {start} with roll {self.roll}")
+        if destination != expected_destination:
+            raise ValueError(
+                f"Illegal destination {destination} from {start} with roll {self.roll}; expected {expected_destination}"
+            )
 
         own_pieces[own_pieces.index(start)] = destination
         self.last_landed_position = destination
@@ -129,13 +141,16 @@ class RoyalGameOfUr(gym.Env):
         """
         return self.last_landed_position in self.rosettes
                       
+    def sample_legal_action(self):
+        legal_actions = self.get_legal_moves()
+        return legal_actions[int(self.np_random.integers(len(legal_actions)))]
+
     def move_p2(self):
         self.current_player = 2
 
         while self.current_player == 2:
             self.roll = self.roll_dice()
-            legal_actions = self.get_legal_moves()
-            p2_action = int(self.np_random.choice(legal_actions))
+            p2_action = self.sample_legal_action()
             self.update_board(p2_action)
 
             if self.check_win():
@@ -148,6 +163,7 @@ class RoyalGameOfUr(gym.Env):
 
     def step(self, action):
         self.current_player = 1
+        action = self.normalize_action(action)
         legal_actions = self.get_legal_moves()
 
         if action not in legal_actions:

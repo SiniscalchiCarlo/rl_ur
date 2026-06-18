@@ -8,9 +8,10 @@ def active_board_positions(positions):
 
 
 def describe_action(env, action):
+    action = tuple(action)
     if action == env.pass_action:
         return "pass"
-    return f"move from {action}"
+    return f"move from {action[0]} to {action[1]}"
 
 
 def play_episode(N=2, seed=None, delay=0.5, max_steps=200):
@@ -27,7 +28,7 @@ def play_episode(N=2, seed=None, delay=0.5, max_steps=200):
 
     while not (terminated or truncated) and step_count < max_steps:
         legal_actions = env.get_legal_moves()
-        action = int(env.np_random.choice(legal_actions))
+        action = env.sample_legal_action()
 
         print(
             f"Step {step_count + 1}: roll={env.roll}, "
