@@ -1,0 +1,47 @@
+\section{Part2: Implement the game environment}
+
+We model the environment using the gymnasium library. First of all in the \texttt{\_\_init\_\_} method we define problem specific variables such as the number of pieces per player, the home cell, the scored cell, and tuples with the board numbers of private cells, public cells, and rosettes. Then we define the observation and the action space, which in case of 2 pieces per player are:
+
+\begin{itemize}
+\item observation space: \texttt{MultiDiscrete([16, 16, 16, 16, 5])}
+\item action space: \texttt{Discrete(16)}
+\end{itemize}
+
+The observation has the form \texttt{[p11, p12, p21, p22, dice]}, where the first two values are the positions of player 1 pieces, the next two are the positions of player 2 pieces, and the last value is the dice roll. Piece positions go from \texttt{0} to \texttt{15}: \texttt{0} is the home cell, \texttt{1} to \texttt{14} are board positions, and \texttt{15} is the scored cell. The dice roll can be \texttt{0, 1, 2, 3, 4}. Actions \texttt{0} to \texttt{14} mean moving a piece from that position, while action \texttt{15} is the pass action.
+
+Also in the \texttt{\_\_init\_\_} the \texttt{reset} method is called. This method resets simulation variables, so for example it sets players pieces positions to be all in the home cell (so 0), sets the current player playing to 1, rolls the dice, and creates the first state.
+
+In the \texttt{step} function we first set the current player to 1. We then check if the agent action is legal and update the board based on the action, so we compute the destination of the piece and, in case it overlaps with one of the enemies on a public cell, we reset the enemy position to the home cell. If the first player wins, the episode terminates with reward 1. If the first player does not win and his piece lands on a rosette, a new dice is rolled and player 1 keeps the turn. If the first player does not land on a rosette, then the action of the second player is picked randomly from the possible legal actions. If the second player lands on a rosette, he keeps playing until he either wins or makes a move that is not on a rosette. If the second player wins, the episode terminates with reward 0; otherwise a new dice is rolled for player 1.
+
+\begin{algorithm}[H]
+\caption{Step function}
+\begin{algorithmic}[1]
+\State Set current player to player 1
+\State Compute legal actions for player 1
+\If{agent action is not legal}
+    \State Raise an error
+\EndIf
+\State Update the board using the agent action
+\If{player 1 has won}
+    \State Return next state, reward $1$, terminated
+\ElsIf{player 1 landed on a rosette}
+    \State Roll a new dice for player 1
+    \State Return next state, reward $0$, not terminated
+\Else
+    \State Set current player to player 2
+    \While{player 2 keeps the turn}
+        \State Roll the dice for player 2
+        \State Compute legal actions for player 2
+        \State Choose one legal action randomly
+        \State Update the board using player 2 action
+        \If{player 2 has won}
+            \State Return next state, reward $0$, terminated
+        \ElsIf{player 2 did not land on a rosette}
+            \State End player 2 turn
+        \EndIf
+    \EndWhile
+    \State Roll a new dice for player 1
+    \State Return next state, reward $0$, not terminated
+\EndIf
+\end{algorithmic}
+\end{algorithm}
