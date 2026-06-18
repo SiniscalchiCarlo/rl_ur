@@ -1,12 +1,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-import time
-import pandas as pd
-import matplotlib.pyplot as plt
 import sys
-import itertools
-from pydantic import BaseModel
 
 
 # Royal game of Ur
