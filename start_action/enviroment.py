@@ -88,8 +88,11 @@ class RoyalGameOfUr(gym.Env):
             if self.roll == 0 or start == self.scored_cell:
                 continue
 
-            destination = min(start + self.roll, self.scored_cell)
-            # The only pieces that can shere the same cells are the one in the home or score cell, otherwise the action is illegal
+            destination = start + self.roll
+            if destination > self.scored_cell:
+                continue
+
+            # The only pieces that can share the same cells are the ones in the home or score cell; otherwise the action is illegal.
             if destination not in (self.home_cell, self.scored_cell) and destination in pieces:
                 continue
 
@@ -110,7 +113,10 @@ class RoyalGameOfUr(gym.Env):
         enemy_pieces = self.player2_loc if self.current_player == 1 else self.player1_loc
 
         start = int(action)
-        destination = min(start + self.roll, self.scored_cell)
+        destination = start + self.roll
+        if destination > self.scored_cell:
+            raise ValueError(f"Illegal overshoot from {start} with roll {self.roll}")
+
         own_pieces[own_pieces.index(start)] = destination
         self.last_landed_position = destination
 
