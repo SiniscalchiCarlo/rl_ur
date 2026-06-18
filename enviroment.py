@@ -38,24 +38,10 @@ class RoyalGameOfUr(gym.Env):
 
         self.reset()
         
-    """
-    The initialisation function is already given above, but you should still fill in the other elements of this function.
-    The other functions that should be defined are
-    
-    1. The reset function, which should set the clear the board, set the number of scored pieces per player to zero, and start
-    with the turn of player 1
-    2. The step function, which gives the next state, reward, and done given the current state, roll, and action.
-    (3.) It will be very useful to define a function that gives the possible moves for the current player given the board state
-    and roll.
-    (4.) It may also be useful to define a function that rolls the dice, but you can also make this part of the step function.
-    
-    A render function has been given which allows you to visualise episodes of the game being played.
-    """
-    
     def roll_dice(self):
         return int(self.np_random.binomial(4, 0.5))
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None):
         super().reset(seed=seed)
 
         self.player1_loc = [self.home_cell] * self.N
@@ -78,6 +64,9 @@ class RoyalGameOfUr(gym.Env):
         return all(piece == self.scored_cell for piece in pieces)
 
     def normalize_action(self, action):
+        """
+        Convert a Gymnasium action to a (start, destination) tuple of ints.
+        """
         if isinstance(action, np.ndarray):
             action = action.tolist()
         if isinstance(action, (list, tuple)) and len(action) == 2:
