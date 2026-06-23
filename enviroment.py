@@ -15,6 +15,12 @@ class RoyalGameOfUr(gym.Env):
         # Number of pieces per player.
         self.N = N
 
+        # Scale for the potential-based shaping term (see potential() / step()).
+        # The raw potential can swing by ~tens of cells over a game, while the
+        # terminal win reward is +/-1; scaling the shaping down keeps it a gentle
+        # guidance signal rather than something that dominates the win/loss reward.
+        self.shaping_scale = 0.01
+
         # Board constants used by the transition logic. Positions are encoded as:
         # 0 = not entered, 1..14 = board path, 15 = scored.
         self.home_cell = 0
@@ -49,12 +55,24 @@ class RoyalGameOfUr(gym.Env):
         self.current_player = 1
         self.last_landed_position = None
         self.roll = self.roll_dice()
-        self.state = np.array(
-            self.player1_loc + self.player2_loc + [self.roll],
-            dtype=np.int64,
-        )
+        self.state = self._make_state()
 
         return self.state, {}
+
+    def _make_state(self):
+        """
+        Build the observation the agent keys on. Piece positions are sorted per
+        player so that game-equivalent positions (e.g. [3, 7] and [7, 3]) map to a
+        single state. This is purely a relabelling of the observation: the internal
+        player1_loc / player2_loc lists keep their order for the transition logic,
+        so update_board's .index() lookups are unaffected. Collapsing these
+        permutation-symmetric states roughly halves the effective state space and
+        multiplies the number of visits per state, which a tabular method needs.
+        """
+        return np.array(
+            sorted(self.player1_loc) + sorted(self.player2_loc) + [self.roll],
+            dtype=np.int64,
+        )
 
     def check_win(self):
         """
@@ -150,6 +168,21 @@ class RoyalGameOfUr(gym.Env):
 
         return False
 
+    def potential(self):
+        """
+        Potential Phi(s) for potential-based reward shaping: P1's total board
+        progress minus P2's, summed over pieces (0 = home, 1..14 = path, 15 =
+        scored). Higher means P1 is further ahead. Used to add a dense shaping
+        term Phi(s') - Phi(s) to the sparse +/-1 win reward.
+
+        Potential-based shaping (Ng, Harada & Russell 1999) is provably
+        policy-invariant: adding gamma*Phi(s') - Phi(s) to the reward does not
+        change which policy is optimal, it only densifies the learning signal so
+        the agent gets feedback every move (advancing/scoring is good, getting
+        captured back to home is bad) instead of only at the terminal step.
+        """
+        return float(sum(self.player1_loc) - sum(self.player2_loc))
+
     def step(self, action):
         self.current_player = 1
         action = self.normalize_action(action)
@@ -158,23 +191,35 @@ class RoyalGameOfUr(gym.Env):
         if action not in legal_actions:
             raise ValueError(f"Illegal action {action} in state {self.state.tolist()}")
 
+        # Potential before the transition, for potential-based reward shaping.
+        phi_before = self.potential()
+
         self.update_board(action)
         terminated = self.check_win()
+        # +1 for a P1 win, -1 for a P2 win, 0 otherwise. The loss penalty gives the
+        # agent a gradient to avoid positions that let P2 finish the game.
         reward = 1 if terminated else 0
 
         if not terminated:
             if self.is_on_rosette():
                 self.roll = self.roll_dice()
             else:
-                terminated = self.move_p2()
-                if not terminated:
+                p2_won = self.move_p2()
+                if p2_won:
+                    terminated = True
+                    reward = -1
+                else:
                     self.roll = self.roll_dice()
 
         self.current_player = 1
-        self.state = np.array(
-            self.player1_loc + self.player2_loc + [self.roll],
-            dtype=np.int64,
-        )
+        self.state = self._make_state()
+
+        # Add the shaping term gamma*Phi(s') - Phi(s) (gamma = 1). On terminal
+        # transitions Phi(s') is taken as 0 by convention, which keeps the shaped
+        # return's optimal policy identical to the unshaped one.
+        phi_after = 0.0 if terminated else self.potential()
+        reward = reward + self.shaping_scale * (phi_after - phi_before)
+
         info = {"legal_actions": [] if terminated else self.get_legal_moves()}
         return self.state, reward, terminated, False, info
 
