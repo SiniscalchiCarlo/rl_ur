@@ -1,9 +1,6 @@
 import numpy as np
 from collections import defaultdict
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-import pandas as pd
-from enviroment import RoyalGameOfUr
 
 
 def legal_indices(legal_moves):
@@ -66,6 +63,11 @@ def exp_sarsa(env, num_episodes, discount_factor=1.0, alpha=0.01, epsilon=0.1):
     """
     all_actions = [(i, j) for i in range(16) for j in range(16)]
     idx_to_action = {idx: a for idx, a in enumerate(all_actions)}
+    action_to_idx = {a: idx for idx, a in enumerate(all_actions)}
+
+    tracked_state = (0, 0, 0, 0, 4)
+    tracked_action = action_to_idx[(0, 4)]  
+    Q_trajectory = np.zeros(num_episodes)
 
     Q = defaultdict(lambda: np.zeros(len(all_actions)))  # 256 values
 
@@ -108,27 +110,6 @@ def exp_sarsa(env, num_episodes, discount_factor=1.0, alpha=0.01, epsilon=0.1):
             state = next_state
             legal_idx = next_legal_idx
             action_idx = e_greedy(Q, state, legal_idx, epsilon)
+        Q_trajectory[i] = Q[tracked_state][tracked_action]
 
-    return Q, episode_rewards, episode_wins, episode_lengths
-
-
-env = RoyalGameOfUr(2)
-Q, episode_rewards, episode_wins, episode_lengths = exp_sarsa(env, 500000)
-
-
-# Plot the win ratio over time
-fig2 = plt.figure(figsize=(10, 5))
-# episode_wins is already a 0/1 win flag (set from the terminal reward sign), so its
-# rolling/expanding mean is a true win ratio even with reward shaping enabled.
-win = pd.Series(episode_wins)
-win_rate_rolling = win.rolling(100, min_periods=1).mean()      # win ratio over the last 100 episodes
-win_rate_cumulative = win.expanding().mean()                   # win ratio since the start
-plt.plot(win_rate_rolling, label='Rolling (window 100)')
-plt.plot(win_rate_cumulative, label='Cumulative', linestyle='--')
-plt.axhline(0.5, color='gray', linewidth=0.8, linestyle=':')
-plt.ylim(ymin=0, ymax=1)
-plt.xlabel("Episode")
-plt.ylabel("Win ratio")
-plt.title("Win ratio over time")
-plt.legend()
-plt.show()
+    return Q_trajectory, episode_rewards, episode_wins, episode_lengths
